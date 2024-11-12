@@ -11,7 +11,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tn.esprit.devops_project.entities.Product;
-import tn.esprit.devops_project.entities.ProductCategory;
 import tn.esprit.devops_project.repository.ProductRepository;
 import tn.esprit.devops_project.service.ProductServiceImpl;
 
@@ -29,11 +28,11 @@ class ProductServiceImplMockTest {
     @InjectMocks
     ProductServiceImpl productService;
 
-    Product product = new Product(1L, "Product1", 100.0f, 10, ProductCategory.ELECTRONICS, null);
+    Product product = new Product(1L, "Product1", 100.0f, 10);
     List<Product> listProducts = new ArrayList<>() {
         {
-            add(new Product(2L, "Product2", 200.0f, 20, ProductCategory.CLOTHING, null));
-            add(new Product(3L, "Product3", 300.0f, 30, ProductCategory.HOME, null));
+            add(new Product(2L, "Product2", 200.0f, 20));
+            add(new Product(3L, "Product3", 300.0f, 30));
         }
     };
 
@@ -57,7 +56,7 @@ class ProductServiceImplMockTest {
     @Test
     @Order(3)
     void testAddProduct() {
-        Product newProduct = new Product(null, "ProductTest", 150.0f, 15, ProductCategory.BOOKS, null);
+        Product newProduct = new Product(null, "ProductTest", 150.0f, 15);
 
         Mockito.when(productRepository.save(Mockito.any(Product.class)))
                 .thenAnswer(invocation -> {
