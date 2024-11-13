@@ -25,4 +25,12 @@ public class Product implements Serializable {
     @ManyToOne
     @JsonIgnore
     Stock stock;
+
+    // public Product(String title, float price, int quantity, ProductCategory category, Stock stock) {
+    //     this.title = title;
+    //     this.price = price;
+    //     this.quantity = quantity;
+    //     this.category = category;
+    //     this.stock = stock;
+    // }
 }
