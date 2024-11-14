@@ -1,0 +1,124 @@
+pipeline {
+    agent any
+    environment {
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+        LOGIN_SONAR_QUBE = credentials('LOGIN_SONAR_QUBE')
+        PASSWORD_SONAR_QUBE = credentials('PASSWORD_SONAR_QUBE')
+        DOCKER_HUB_PWD = credentials('DOCKER_HUB_PWD')
+    }
+    
+    stages {
+        stage('Checkout GIT') {
+            steps {
+                echo 'Pulling code from the branch...'
+                git branch: 'zizo',
+                    url: "https://${GITHUB_TOKEN}@github.com/Azizomezine/DevOps_Project"
+            }
+        }
+        
+        stage('Build with Maven') {
+            steps {
+                echo 'Building with Maven...'
+                sh 'mvn clean compile'
+            }
+        }
+        
+        
+        stage('JUNIT/MOCKITO') {
+            steps {
+                echo 'Running Tests...'
+                sh 'mvn test'
+            }
+        }
+        
+        stage('JaCoCo Report') {
+            steps {
+                step([$class: 'JacocoPublisher',
+                      execPattern: '**/target/jacoco.exec',
+                      classPattern: '**/classes',
+                      sourcePattern: '**/src',
+                      exclusionPattern: '/target/**/,**/*Test,**/*_javassist/**'
+                ])  
+            }
+        }
+        
+        stage('SonarQube') {
+            steps {
+                echo 'Running SonarQube Analysis...'
+                sh 'mvn sonar:sonar -Dsonar.login=${LOGIN_SONAR_QUBE} -Dsonar.password=${PASSWORD_SONAR_QUBE} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml'
+            }
+        }
+        
+        stage('NEXUS') {
+            steps {
+                echo 'Deploying to Nexus...'
+                sh 'mvn deploy -DskipTests'
+            }
+        }
+        
+        stage('Docker Image Building') {
+            steps {
+                echo 'Building Docker Image...'
+                sh 'docker build -t azizomezine/devops:latest .'
+            }
+        }
+        
+        stage('Docker Compose') {
+            steps {
+                echo 'Starting Docker Compose...'
+                sh '''
+                docker compose down || true
+                docker compose up -d
+                '''
+            }
+        }
+        
+        stage('Setup Prometheus and Grafana') {
+            steps {
+                echo 'Restarting Prometheus and Grafana...'
+                sh '''
+                docker restart prometheus || true
+                docker restart grafana || true
+                '''
+            }
+        }
+        
+        stage('Docker login + push') {
+            steps {
+                echo 'Logging into Docker Hub and pushing the image...'
+                sh '''
+                docker login -u azizomezine -p ${DOCKER_HUB_PWD}
+                docker push azizomezine/devops:latest
+                '''
+            }
+        }
+        
+        stage('Mail Notification') {
+            steps {
+                echo 'Sending Email Notification...'
+                mail to: 'mohamedaziz.omezine@esprit.tn',
+                     subject: "Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' finished with status ${currentBuild.currentResult}",
+                     body: """
+                        Pipeline details:
+                        Job Name: ${env.JOB_NAME}
+                        Build Number: ${env.BUILD_NUMBER}
+                        Build Status: ${currentBuild.currentResult}
+                        Build URL: ${env.BUILD_URL}
+                     """
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Cleaning up Docker Containers...'
+            sh '''
+            docker compose down || true
+            docker system prune -f
+            '''
+        }
+        failure {
+            echo 'Build Failed'
+        }
+    }
+}
