@@ -24,7 +24,12 @@ pipeline {
         }
         
         
-       
+        stage('JUNIT/MOCKITO') {
+            steps {
+                echo 'Running Tests...'
+                sh 'mvn test'
+            }
+        }
         
         stage('JaCoCo Report') {
             steps {
@@ -78,10 +83,43 @@ pipeline {
             }
         }
         
-       
+        stage('Docker login + push') {
+            steps {
+                echo 'Logging into Docker Hub and pushing the image...'
+                sh '''
+                docker login -u azizomezine -p ${DOCKER_HUB_PWD}
+                docker push azizomezine/devops:latest
+                '''
+            }
+        }
         
-        
+        stage('Mail Notification') {
+            steps {
+                echo 'Sending Email Notification...'
+                mail to: 'mohamedaziz.omezine@esprit.tn',
+                     subject: "Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' finished with status ${currentBuild.currentResult}",
+                     body: """
+                        Pipeline details:
+                        Job Name: ${env.JOB_NAME}
+                        Build Number: ${env.BUILD_NUMBER}
+                        Build Status: ${currentBuild.currentResult}
+                        Build URL: ${env.BUILD_URL}
+                     """
+            }
+        }
     }
     
-   
+    post {
+    always {
+        echo 'Cleaning up Docker Containers and Images...'
+        sh '''
+        docker compose down || true
+        docker rmi fd2c7ed3ee08 || true
+        '''
+    }
+    failure {
+        echo 'Build Failed'
+    }
+}
+
 }
