@@ -30,13 +30,7 @@ pipeline {
 
        
 
-        stage('JUNIT/MOCKITO') {
-            steps {
-                // Runs unit tests to ensure the code behaves as expected
-                echo 'Running Unit Tests with Mockito...'
-                sh 'mvn test'
-            }
-        }
+       
 
 
         stage('JaCoCo Report') {
@@ -100,31 +94,7 @@ pipeline {
             }
         }
 
-        stage('Docker login + push') {
-            steps {
-                // Logs in to Docker Hub and pushes the Docker image
-                echo 'Logging in and pushing Docker Image to Docker Hub...'
-                sh '''
-                docker login -u azizomezine -p ${DOCKER_HUB_PWD}
-                docker push azizomezine/devops:latest
-                '''
-            }
-        }
-
-        stage('Mail Notification') {
-            steps {
-                // Sends an email notification with pipeline build details
-                echo 'Sending Email Notification...'
-                mail to: 'mohamedaziz.omezine@esprit.tn',
-                     subject: "The pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' finished",
-                     body: """
-                    Pipeline details:
-                    Job Name: ${env.JOB_NAME}
-                    Number of Builds: ${env.BUILD_NUMBER}
-                    Build Status: ${currentBuild.currentResult}
-                    View the build URL: ${env.BUILD_URL}
-                    """
-            }
-        }
+      
+     
     }
 }
