@@ -1,95 +1,139 @@
+// Jenkins Pipeline Definition
 pipeline {
+    // Agent definition: use any available agent
     agent any
+
+    // Environment variables configuration, using Jenkins credentials
     environment {
-        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
-        LOGIN_SONAR_QUBE = credentials('LOGIN_SONAR_QUBE')
-        PASSWORD_SONAR_QUBE = credentials('PASSWORD_SONAR_QUBE')
-        DOCKER_HUB_PWD = credentials('DOCKER_HUB_PWD')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN') // GitHub token for authenticating with the repository
+        LOGIN_SONAR_QUBE = credentials('LOGIN_SONAR_QUBE') // SonarQube login credentials
+        PASSWORD_SONAR_QUBE = credentials('PASSWORD_SONAR_QUBE') // SonarQube password
+        DOCKER_HUB_PWD = credentials('DOCKER_HUB_PWD') // Docker Hub password for pushing Docker images
     }
-    
+
     stages {
+        // Stage to checkout the code from the Git repository
         stage('Checkout GIT') {
             steps {
                 echo 'Pulling code from the branch...'
                 git branch: 'zizo',
-                    url: "https://${GITHUB_TOKEN}@github.com/Azizomezine/DevOps_Project"
+                    url: "https://${GITHUB_TOKEN}@github.com/Azizomezine/DevOps_Project" // Checkout from the specified branch using GitHub token
             }
         }
-        
+
+        // Stage to build the project using Maven
         stage('Build with Maven') {
             steps {
                 echo 'Building with Maven...'
-                sh 'mvn clean compile'
+                sh 'mvn clean compile' // Run Maven clean to remove previous builds and compile to build the project
             }
         }
-        
-        
-        
-        
+
+        // Stage to run unit tests using JUnit and Mockito
+        stage('JUNIT/MOCKITO') {
+            steps {
+                echo 'Running Tests...'
+                sh 'mvn test' // Run Maven test command to execute unit tests
+            }
+        }
+
+        // Stage to publish JaCoCo code coverage report
         stage('JaCoCo Report') {
             steps {
                 step([$class: 'JacocoPublisher',
-                      execPattern: '**/target/jacoco.exec',
-                      classPattern: '**/classes',
-                      sourcePattern: '**/src',
-                      exclusionPattern: '/target/**/,**/*Test,**/*_javassist/**'
+                      execPattern: '**/target/jacoco.exec', // Pattern to locate JaCoCo execution data
+                      classPattern: '**/classes', // Pattern to locate compiled class files
+                      sourcePattern: '**/src', // Pattern to locate source files
+                      exclusionPattern: '/target/**/,**/*Test,**/*_javassist/**' // Exclude target directory and test-related classes
                 ])  
             }
         }
-        
+
+        // Stage to run SonarQube analysis for code quality
         stage('SonarQube') {
             steps {
                 echo 'Running SonarQube Analysis...'
-                sh 'mvn sonar:sonar -Dsonar.login=${LOGIN_SONAR_QUBE} -Dsonar.password=${PASSWORD_SONAR_QUBE} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml'
+                sh 'mvn sonar:sonar -Dsonar.login=${LOGIN_SONAR_QUBE} -Dsonar.password=${PASSWORD_SONAR_QUBE} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml' // Run SonarQube analysis with credentials and specify JaCoCo report path
             }
         }
-        
+
+        // Stage to deploy artifacts to Nexus repository
         stage('NEXUS') {
             steps {
                 echo 'Deploying to Nexus...'
-                sh 'mvn deploy -DskipTests'
+                sh 'mvn deploy -DskipTests' // Deploy Maven artifacts to Nexus, skip tests during deployment
             }
         }
-        
+
+        // Stage to build Docker image
         stage('Docker Image Building') {
             steps {
                 echo 'Building Docker Image...'
-                sh 'docker build -t azizomezine/devops:latest .'
+                sh 'docker build -t azizomezine/devops:latest .' // Build Docker image with the specified tag
             }
         }
-        
+
+        // Stage to start Docker services using Docker Compose
         stage('Docker Compose') {
             steps {
                 echo 'Starting Docker Compose...'
                 sh '''
-                docker compose down || true
-                docker compose up -d
+                docker compose down || true // Bring down any running containers, ignore errors if none are running
+                docker compose up -d // Start containers in detached mode using Docker Compose
                 '''
             }
         }
-        
+
+        // Stage to set up Prometheus and Grafana monitoring tools
         stage('Setup Prometheus and Grafana') {
             steps {
                 echo 'Restarting Prometheus and Grafana...'
                 sh '''
-                docker restart prometheus || true
-                docker restart grafana || true
+                docker restart prometheus || true // Restart Prometheus container, ignore errors if not running
+                docker restart grafana || true // Restart Grafana container, ignore errors if not running
                 '''
             }
         }
-        
+
+        // Stage to log in to Docker Hub and push the built Docker image
         stage('Docker login + push') {
             steps {
                 echo 'Logging into Docker Hub and pushing the image...'
                 sh '''
-                docker login -u azizomezine -p ${DOCKER_HUB_PWD}
-                docker push azizomezine/devops:latest
+                docker login -u azizomezine -p ${DOCKER_HUB_PWD} // Login to Docker Hub using username and password
+                docker push azizomezine/devops:latest // Push the Docker image to Docker Hub with the specified tag
                 '''
             }
         }
-        
-        
+
+        // Stage to send email notification after the pipeline finishes
+        stage('Mail Notification') {
+            steps {
+                echo 'Sending Email Notification...'
+                mail to: 'mohamedaziz.omezine@esprit.tn',
+                     subject: "Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' finished with status ${currentBuild.currentResult}",
+                     body: """
+                        Pipeline details:
+                        Job Name: ${env.JOB_NAME}
+                        Build Number: ${env.BUILD_NUMBER}
+                        Build Status: ${currentBuild.currentResult}
+                        Build URL: ${env.BUILD_URL}
+                     """ // Send email with pipeline details including job name, build number, status, and build URL
+            }
+        }
     }
-    
-   
+
+    // Post actions to always execute cleanup
+    post {
+        always {
+            echo 'Cleaning up Docker Containers...'
+            sh '''
+            docker stop aziz_omezine_5ia-app-Devops-1 || true // Stop the specific container named 'aziz_omezine_5ia-app-Devops-1', ignore errors if not running
+            docker system prune -f // Force remove unused Docker resources to free up space
+            '''
+        }
+        failure {
+            echo 'Build Failed' // Log message indicating the build has failed
+        }
+    }
 }
