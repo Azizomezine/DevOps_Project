@@ -1,5 +1,7 @@
 pipeline {
     agent any
+    
+    // Defining environment variables to securely access credentials for GitHub, SonarQube, and Docker Hub
     environment {
         GITHUB_TOKEN = credentials('GITHUB_TOKEN')
         LOGIN_SONAR_QUBE = credentials('LOGIN_SONAR_QUBE')
@@ -8,94 +10,135 @@ pipeline {
     }
     
     stages {
+        // Stage to check out the code from the GitHub repository
         stage('Checkout GIT') {
             steps {
                 echo 'Pulling code from the branch...'
+                // Using the GITHUB_TOKEN to authenticate and clone the repository
                 git branch: 'zizo',
                     url: "https://${GITHUB_TOKEN}@github.com/Azizomezine/DevOps_Project"
+                // Debugging information
+                echo 'GIT checkout completed successfully'
             }
         }
         
+        // Stage to build the project using Maven
         stage('Build with Maven') {
             steps {
                 echo 'Building with Maven...'
+                // Cleaning and compiling the code
                 sh 'mvn clean compile'
+                // Debugging information
+                echo 'Maven build completed successfully'
             }
         }
         
-        
+        // Stage to run unit tests using JUnit and Mockito
         stage('JUNIT/MOCKITO') {
             steps {
                 echo 'Running Tests...'
+                // Executing unit tests
                 sh 'mvn test'
+                // Debugging information
+                echo 'JUnit and Mockito tests completed successfully'
             }
         }
         
+        // Stage to generate code coverage report using JaCoCo
         stage('JaCoCo Report') {
             steps {
+                // Publishing JaCoCo coverage report
                 step([$class: 'JacocoPublisher',
                       execPattern: '**/target/jacoco.exec',
                       classPattern: '**/classes',
                       sourcePattern: '**/src',
                       exclusionPattern: '/target/**/,**/*Test,**/*_javassist/**'
                 ])  
+                // Debugging information
+                echo 'JaCoCo report generated successfully'
             }
         }
         
+        // Stage to perform code analysis using SonarQube
         stage('SonarQube') {
             steps {
                 echo 'Running SonarQube Analysis...'
+                // Running SonarQube analysis with credentials
                 sh 'mvn sonar:sonar -Dsonar.login=${LOGIN_SONAR_QUBE} -Dsonar.password=${PASSWORD_SONAR_QUBE} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml'
+                // Debugging information
+                echo 'SonarQube analysis completed successfully'
             }
         }
         
+        // Stage to deploy the built artifacts to Nexus repository
         stage('NEXUS') {
             steps {
                 echo 'Deploying to Nexus...'
+                // Deploying artifacts while skipping tests
                 sh 'mvn deploy -DskipTests'
+                // Debugging information
+                echo 'Artifacts deployed to Nexus successfully'
             }
         }
         
+        // Stage to build a Docker image for the project
         stage('Docker Image Building') {
             steps {
                 echo 'Building Docker Image...'
+                // Building Docker image with a specified tag
                 sh 'docker build -t azizomezine/devops:latest .'
+                // Debugging information
+                echo 'Docker image built successfully'
             }
         }
         
+        // Stage to start services using Docker Compose
         stage('Docker Compose') {
             steps {
                 echo 'Starting Docker Compose...'
+                // Bringing down any existing containers and starting new ones
                 sh '''
                 docker compose down || true
                 docker compose up -d
                 '''
+                // Debugging information
+                echo 'Docker Compose started successfully'
             }
         }
         
+        // Stage to restart Prometheus and Grafana for monitoring
         stage('Setup Prometheus and Grafana') {
             steps {
                 echo 'Restarting Prometheus and Grafana...'
+                // Restarting Prometheus and Grafana containers if they exist
                 sh '''
                 docker restart prometheus || true
                 docker restart grafana || true
                 '''
+                // Debugging information
+                echo 'Prometheus and Grafana restarted successfully'
             }
         }
         
+        // Stage to log in to Docker Hub and push the built Docker image
         stage('Docker login + push') {
             steps {
                 echo 'Logging into Docker Hub and pushing the image...'
+                // Logging into Docker Hub using credentials and pushing the image
                 sh '''
                 docker login -u azizomezine -p ${DOCKER_HUB_PWD}
                 docker push azizomezine/devops:latest
                 '''
+                // Debugging information
+                echo 'Docker image pushed to Docker Hub successfully'
             }
         }
         
+        // Stage to send an email notification with the pipeline build details
         stage('Mail Notification') {
             steps {
                 echo 'Sending Email Notification...'
+                // Sending email notification with build details
                 mail to: 'mohamedaziz.omezine@esprit.tn',
                      subject: "Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' finished with status ${currentBuild.currentResult}",
                      body: """
@@ -105,21 +148,28 @@ pipeline {
                         Build Status: ${currentBuild.currentResult}
                         Build URL: ${env.BUILD_URL}
                      """
+                // Debugging information
+                echo 'Email notification sent successfully'
             }
         }
+
+       
     }
     
     post {
-    always {
-        echo 'Cleaning up Docker Containers and Images...'
-        sh '''
-        docker compose down || true
-        docker rmi fd2c7ed3ee08 || true
-        '''
+        // Always clean up Docker containers and images after the pipeline runs
+        always {
+            echo 'Cleaning up Docker Containers and Images...'
+            sh '''
+            docker compose down || true
+            docker rmi azizomezine/devops:latest || true
+            '''
+            // Debugging information
+            echo 'Docker containers and images cleaned up successfully'
+        }
+        // Print a message if the build fails
+        failure {
+            echo 'Build Failed'
+        }
     }
-    failure {
-        echo 'Build Failed'
-    }
-}
-
 }
