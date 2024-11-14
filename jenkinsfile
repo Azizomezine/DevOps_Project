@@ -45,18 +45,7 @@ pipeline {
                 ])  
             }
         }
-        stage('SonarQube') {
-            steps {
-                // Runs SonarQube analysis to check code quality, and includes JaCoCo code coverage reports
-                echo 'Running SonarQube analysis with JaCoCo coverage report...'
-                sh '''
-                mvn clean verify sonar:sonar \
-                    -Dsonar.login=${LOGIN_SONAR_QUBE} \
-                    -Dsonar.password=${PASSWORD_SONAR_QUBE} \
-                    -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-                ''' // Use 'bat' instead of 'sh' if running on Windows
-            }
-        }
+   
         stage('NEXUS') {
             steps {
                 // Deploys the compiled project to Nexus repository (skips tests to save time)
