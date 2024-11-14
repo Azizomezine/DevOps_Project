@@ -13,7 +13,7 @@ pipeline {
             steps {
                 // Pulls the code from the specified Git branch using a secure GitHub token
                 echo 'Pulling code from the branch...'
-                git branch: 'zizo',
+                git branch: 'aziz',
                     url: 'https://${GITHUB_TOKEN}@github.com/Azizomezine/DevOps_Project'
             }
         }
@@ -30,7 +30,13 @@ pipeline {
 
        
 
-       
+        stage('JUNIT/MOCKITO') {
+            steps {
+                // Runs unit tests to ensure the code behaves as expected
+                echo 'Running Unit Tests with Mockito...'
+                sh 'mvn test'
+            }
+        }
 
 
         stage('JaCoCo Report') {
@@ -45,7 +51,18 @@ pipeline {
                 ])  
             }
         }
-   
+        stage('SonarQube') {
+            steps {
+                // Runs SonarQube analysis to check code quality, and includes JaCoCo code coverage reports
+                echo 'Running SonarQube analysis with JaCoCo coverage report...'
+                sh '''
+                mvn clean verify sonar:sonar \
+                    -Dsonar.login=${LOGIN_SONAR_QUBE} \
+                    -Dsonar.password=${PASSWORD_SONAR_QUBE} \
+                    -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                ''' // Use 'bat' instead of 'sh' if running on Windows
+            }
+        }
         stage('NEXUS') {
             steps {
                 // Deploys the compiled project to Nexus repository (skips tests to save time)
@@ -83,7 +100,31 @@ pipeline {
             }
         }
 
-      
-     
+        stage('Docker login + push') {
+            steps {
+                // Logs in to Docker Hub and pushes the Docker image
+                echo 'Logging in and pushing Docker Image to Docker Hub...'
+                sh '''
+                docker login -u azizomezine -p ${DOCKER_HUB_PWD}
+                docker push azizomezine/devops:latest
+                '''
+            }
+        }
+
+        stage('Mail Notification') {
+            steps {
+                // Sends an email notification with pipeline build details
+                echo 'Sending Email Notification...'
+                mail to: 'mohamedaziz.omezine@esprit.tn',
+                     subject: "The pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' finished",
+                     body: """
+                    Pipeline details:
+                    Job Name: ${env.JOB_NAME}
+                    Number of Builds: ${env.BUILD_NUMBER}
+                    Build Status: ${currentBuild.currentResult}
+                    View the build URL: ${env.BUILD_URL}
+                    """
+            }
+        }
     }
 }
