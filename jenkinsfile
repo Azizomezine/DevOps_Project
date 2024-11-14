@@ -13,7 +13,7 @@ pipeline {
             steps {
                 // Pulls the code from the specified Git branch using a secure GitHub token
                 echo 'Pulling code from the branch...'
-                git branch: 'aziz',
+                git branch: 'zizo',
                     url: 'https://${GITHUB_TOKEN}@github.com/Azizomezine/DevOps_Project'
             }
         }
