@@ -1,4 +1,4 @@
-pipeline { 
+pipeline {  
     agent any
     environment {
         // Stockage sécurisé des identifiants pour GitHub, SonarQube et Docker Hub
@@ -50,11 +50,8 @@ pipeline {
             steps {
                 echo 'Exécution de l\'analyse SonarQube avec le rapport de couverture JaCoCo...' // Message pour indiquer le début de l'analyse SonarQube
                 sh '''
-                mvn clean verify sonar:sonar \                      // Exécute SonarQube avec le rapport de couverture
-                    -Dsonar.login=${LOGIN_SONAR_QUBE} \             // Utilise l'identifiant SonarQube
-                    -Dsonar.password=${PASSWORD_SONAR_QUBE} \       // Utilise le mot de passe SonarQube
-                    -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml // Spécifie le chemin vers le rapport JaCoCo
-                '''
+                mvn clean verify sonar:sonar -Dsonar.login=${LOGIN_SONAR_QUBE} -Dsonar.password=${PASSWORD_SONAR_QUBE} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                ''' // Exécute SonarQube avec le rapport de couverture en une seule ligne
             }
         }
 
@@ -126,4 +123,3 @@ pipeline {
         }
     }
 }
-
