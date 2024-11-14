@@ -1,125 +1,128 @@
-pipeline {  
+pipeline {
     agent any
     environment {
-        // Stockage sécurisé des identifiants pour GitHub, SonarQube et Docker Hub
-        GITHUB_TOKEN = credentials('GITHUB_TOKEN')         // Jeton d'accès GitHub pour l'accès au dépôt privé
-        LOGIN_SONAR_QUBE = credentials('LOGIN_SONAR_QUBE') // Identifiant de connexion SonarQube
-        PASSWORD_SONAR_QUBE = credentials('PASSWORD_SONAR_QUBE') // Mot de passe SonarQube
-        DOCKER_HUB_PWD = credentials('DOCKER_HUB_PWD')     // Mot de passe Docker Hub pour le push d'image
+        // Environment variables for credentials stored securely in Jenkins
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+        LOGIN_SONAR_QUBE = credentials('LOGIN_SONAR_QUBE')
+        PASSWORD_SONAR_QUBE = credentials('PASSWORD_SONAR_QUBE')
+        DOCKER_HUB_PWD = credentials('DOCKER_HUB_PWD')
     }
     stages {
 
         stage('Checkout GIT') {
             steps {
-                echo 'Récupération du code depuis la branche...' // Message pour indiquer le début de l'extraction
-                git branch: 'zizo',                    // Spécifie la branche à récupérer
-                    url: 'https://github.com/Azizomezine/DevOps_Project', // URL du dépôt GitHub
-                    credentialsId: 'GITHUB_TOKEN'      // Identifiants pour accéder au dépôt GitHub
+                echo 'Pulling code from the branch...'
+                git branch: 'zizo', 
+                    url: 'https://github.com/Azizomezine/DevOps_Project', 
+                    credentialsId: 'GITHUB_TOKEN'
             }
         }
 
         stage('Build with Maven') {
             steps {
-                echo 'Compilation avec Maven...' // Message pour indiquer le début de la compilation
+                echo 'Building with Maven...'
                 sh '''
-                mvn clean compile            // Commande Maven pour nettoyer et compiler le code
+                mvn clean compile 
                 '''
             }
         }
 
         stage('JUNIT/MOCKITO') {
             steps {
-                echo 'Exécution des tests unitaires avec Mockito...' // Message pour indiquer le début des tests unitaires
-                sh 'mvn test'                             // Exécute les tests Maven
+                echo 'Running Unit Tests with Mockito...'
+                sh 'mvn test'
             }
         }
 
         stage('JaCoCo Report') {
             steps {
-                echo 'Publication du rapport de couverture JaCoCo...' // Message pour indiquer la publication du rapport JaCoCo
-                step([$class: 'JacocoPublisher',             // Classe JaCoCoPublisher pour publier le rapport
-                      execPattern: '**/target/jacoco.exec',  // Modèle de fichier pour l'exécution
-                      classPattern: '**/target/classes',     // Modèle pour les fichiers de classes
-                      sourcePattern: '**/src/main/java',     // Modèle pour les fichiers source
-                      exclusionPattern: '**/target/**,**/*Test*,**/*_javassist/**' // Modèles d'exclusion
+                echo 'Publishing JaCoCo Coverage Report...'
+                step([$class: 'JacocoPublisher',
+                      execPattern: '**/target/jacoco.exec',
+                      classPattern: '**/target/classes',
+                      sourcePattern: '**/src/main/java',
+                      exclusionPattern: '**/target/**,**/*Test*,**/*_javassist/**'
                 ])
             }
         }
 
         stage('SonarQube') {
             steps {
-                echo 'Exécution de l\'analyse SonarQube avec le rapport de couverture JaCoCo...' // Message pour indiquer le début de l'analyse SonarQube
+                echo 'Running SonarQube analysis with JaCoCo coverage report...'
                 sh '''
-                mvn clean verify sonar:sonar -Dsonar.login=${LOGIN_SONAR_QUBE} -Dsonar.password=${PASSWORD_SONAR_QUBE} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-                ''' // Exécute SonarQube avec le rapport de couverture en une seule ligne
+                mvn clean verify sonar:sonar \
+                    -Dsonar.login=${LOGIN_SONAR_QUBE} \
+                    -Dsonar.password=${PASSWORD_SONAR_QUBE} \
+                    -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                '''
             }
         }
 
         stage('NEXUS') {
             steps {
-                echo 'Déploiement vers le dépôt Nexus...' // Message pour indiquer le début du déploiement vers Nexus
-                sh 'mvn deploy -DskipTests'             // Commande Maven pour déployer en ignorant les tests
+                echo 'Deploying to Nexus Repository...'
+                sh 'mvn deploy -DskipTests'
             }
         }
 
         stage('Docker Image Building') {
             steps {
-                echo 'Construction de l\'image Docker...' // Message pour indiquer le début de la construction de l'image Docker
+                echo 'Building Docker Image...'
                 sh '''
-                docker build -t azizomezine/devops:latest . // Construit l'image Docker avec le tag latest
+                docker build -t azizomezine/devops:latest .
                 '''
             }
         }
 
         stage('Cleanup Docker') {
             steps {
-                echo 'Nettoyage des conteneurs Docker existants...' // Message pour indiquer le début du nettoyage des conteneurs
+                echo 'Cleaning up existing Docker containers...'
                 sh '''
-                docker compose down || true // Arrête et supprime les conteneurs en cours d'exécution, ignore les erreurs s'il n'y en a pas
+                docker compose down || true
                 '''
             }
         }
 
         stage('Docker Compose') {
             steps {
-                echo 'Lancement de Docker Compose...' // Message pour indiquer le lancement de Docker Compose
+                echo 'Starting Docker Compose...'
                 sh '''
-                docker compose up -d --force-recreate // Recrée et démarre les services en mode détaché
+                docker compose up -d --force-recreate
                 '''
             }
         }
 
         stage('Setup Prometheus and Grafana') {
             steps {
-                echo 'Configuration de Prometheus et Grafana...' // Message pour indiquer la configuration de Prometheus et Grafana
-                sh 'docker restart prometheus'              // Redémarre le conteneur Prometheus pour la surveillance
-                sh 'docker restart grafana'                 // Redémarre le conteneur Grafana pour la surveillance
+                echo 'Setting up Prometheus and Grafana...'
+                sh 'docker restart prometheus'
+                sh 'docker restart grafana'
             }
         }
 
         stage('Docker login + push') {
             steps {
-                echo 'Connexion et push de l\'image Docker vers Docker Hub...' // Message pour indiquer la connexion et le push de l'image vers Docker Hub
+                echo 'Logging in and pushing Docker Image to Docker Hub...'
                 sh '''
-                echo ${DOCKER_HUB_PWD} | docker login -u azizomezine --password-stdin // Connexion à Docker Hub avec mot de passe
-                docker push azizomezine/devops:latest // Pousse l'image Docker avec le tag latest
+                echo ${DOCKER_HUB_PWD} | docker login -u azizomezine --password-stdin
+                docker push azizomezine/devops:latest
                 '''
             }
         }
 
         stage('Mail Notification') {
             steps {
-                echo 'Envoi de la notification par email...' // Message pour indiquer l'envoi de l'email de notification
+                echo 'Sending Email Notification...'
                 mail to: 'mohamedaziz.omezine@esprit.tn',
-                     subject: "Le pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' est terminé",
+                     subject: "The pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' finished",
                      body: """
-                    Détails du pipeline :
-                    Nom du Job : ${env.JOB_NAME}
-                    Numéro de Build : ${env.BUILD_NUMBER}
-                    Statut du Build : ${currentBuild.currentResult}
-                    URL du Build : ${env.BUILD_URL}
-                    """ // Contenu de l'email avec les détails du pipeline
+                    Pipeline details:
+                    Job Name: ${env.JOB_NAME}
+                    Number of Builds: ${env.BUILD_NUMBER}
+                    Build Status: ${currentBuild.currentResult}
+                    View the build URL: ${env.BUILD_URL}
+                    """
             }
         }
     }
-}
+} 
